@@ -18,10 +18,10 @@ app = FastAPI()
 
 # Define request body model
 class HealthInput(BaseModel):
-    Heart_Rate: float
-    Sleep_Duration: float
-    Timestamp_Numeric: int
-    sleep_category: int  # Required but unused in processing
+    heart_rate: float
+    sleep_duration: float
+    timestamp_numeric: int  # Ensuring timestamp is included
+    sleep_category: int  # Still included but unused in prediction
 
 @app.get("/")
 def home():
@@ -31,14 +31,15 @@ def home():
 def predict(data: HealthInput):
     try:
         # Create DataFrame with correct feature names
-        input_df = pd.DataFrame([[data.Heart_Rate, data.Sleep_Duration, data.Timestamp_Numeric]], 
+        input_df = pd.DataFrame([[data.heart_rate, data.sleep_duration, data.timestamp_numeric]], 
                                 columns=["Heart Rate", "Sleep Duration", "Timestamp_Numeric"])
         
-        # Normalize inputs
+        # Normalize inputs using the same scaler as during training
         input_data = scaler.transform(input_df)
 
-        # Reshape for LSTM (batch_size=1, time_steps=1, features=3)
-        input_data = np.reshape(input_data, (1, 1, 3))
+        # Reshape for LSTM - Ensure the model receives (batch_size, time_steps=6, features=3)
+        input_data = np.tile(input_data, (6, 1))  # Repeat input to match time steps
+        input_data = np.reshape(input_data, (1, 6, 3))
 
         # Get prediction
         prediction = model.predict(input_data)[0][0]
