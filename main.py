@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import pandas as pd
 import joblib
 import tensorflow as tf
 from fastapi import FastAPI, HTTPException
@@ -28,20 +29,30 @@ def home():
 @app.post("/predict")
 def predict(data: HealthInput):
     try:
+        # Create DataFrame with feature names to avoid sklearn warning
+        input_df = pd.DataFrame([[data.heart_rate, data.sleep_duration]], columns=["heart_rate", "sleep_duration"])
+        
         # Normalize inputs
-        input_data = scaler.transform([[data.heart_rate, data.sleep_duration]])
-        
-        # Reshape for LSTM
-        input_data = np.reshape(input_data, (1, 1, 2))  # (batch_size, time_steps, features)
-        
+        input_data = scaler.transform(input_df)
+
+        # Reshape for LSTM (batch_size=1, time_steps=1, features=2)
+        input_data = np.reshape(input_data, (1, 1, 2))
+
         # Get prediction
         prediction = model.predict(input_data)[0][0]
         risk_status = "At Risk" if prediction > 0.5 else "Healthy"
-        
+
+        # Debug logs (only for local testing)
+        print(f"Received Data: {data}")
+        print(f"Processed DataFrame:\n{input_df}")
+        print(f"Scaled Input: {input_data}")
+        print(f"Prediction: {prediction} -> Status: {risk_status}")
+
         return {"prediction": float(prediction), "status": risk_status}
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Error: {str(e)}")  # Debugging log
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 # Run locally
 if __name__ == "__main__":
