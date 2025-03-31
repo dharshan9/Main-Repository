@@ -3,25 +3,34 @@ import numpy as np
 import pandas as pd
 import joblib
 import tensorflow as tf
+import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 # Suppress TensorFlow logs
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Load trained LSTM model and scaler
-model = tf.keras.models.load_model("health_risk_model.h5")
-scaler = joblib.load("scaler.pkl")
+try:
+    model = tf.keras.models.load_model("health_risk_model.h5")
+    scaler = joblib.load("scaler.pkl")
+    logger.info("✅ Model & scaler loaded successfully.")
+except Exception as e:
+    logger.error(f"❌ Failed to load model/scaler: {e}")
+    raise RuntimeError("Error loading model or scaler.")
 
 # Initialize FastAPI app
 app = FastAPI()
 
-# Define request body model (fields match Streamlit)
+# Define request body model
 class HealthInput(BaseModel):
     heart_rate: float
     sleep_duration: float
     timestamp_numeric: int
-    sleep_category: int  # Unused but required for schema
 
 @app.get("/")
 def home():
@@ -30,24 +39,31 @@ def home():
 @app.post("/predict")
 def predict(data: HealthInput):
     try:
-        # Create DataFrame with the correct feature names
+        # Create DataFrame with correctly named columns
         input_df = pd.DataFrame([[data.heart_rate, data.sleep_duration, data.timestamp_numeric]], 
-                                columns=["heart_rate", "sleep_duration", "timestamp_numeric"])  # MATCH Streamlit JSON keys
-
-        # Normalize input using the same scaler
+                                columns=["Heart Rate", "Sleep Duration", "Timestamp_Numeric"])  # FIXED column names
+        
+        # Normalize input using the saved scaler
         input_data = scaler.transform(input_df)
 
-        # Reshape for LSTM (batch_size=1, time_steps=6, features=3)
-        input_data = np.tile(input_data, (6, 1))  # Repeat input 6 times
-        input_data = np.reshape(input_data, (1, 6, 3))
+        # Ensure correct shape for LSTM (batch_size=1, time_steps=1, features=3)
+        input_data = np.reshape(input_data, (1, 1, 3))
 
         # Make prediction
-        prediction = model.predict(input_data)[0][0]
-        risk_status = "At Risk" if prediction > 0.5 else "Healthy"
+        prediction = model.predict(input_data)[0]  # Get raw output
+        predicted_class = int(np.argmax(prediction))  # Find most probable class
 
-        return {"prediction": float(prediction), "status": risk_status}
+        # Map prediction to sleep risk status
+        risk_status = ["Healthy", "Mild Risk", "High Risk"][predicted_class]
+
+        return {
+            "prediction": predicted_class,
+            "status": risk_status,
+            "confidence": float(np.max(prediction))  # Confidence of prediction
+        }
     
     except Exception as e:
+        logger.error(f"Server error: {e}")
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 # Run locally
