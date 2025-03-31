@@ -16,12 +16,12 @@ scaler = joblib.load("scaler.pkl")
 # Initialize FastAPI app
 app = FastAPI()
 
-# Define request model (matching feature names used in training)
+# Define request body model
 class HealthInput(BaseModel):
     Heart_Rate: float
     Sleep_Duration: float
     Timestamp_Numeric: int
-    Sleep_Category: int = 0  # Default value
+    sleep_category: int  # Required but unused in processing
 
 @app.get("/")
 def home():
@@ -30,8 +30,8 @@ def home():
 @app.post("/predict")
 def predict(data: HealthInput):
     try:
-        # Create DataFrame with correctly capitalized feature names
-        input_df = pd.DataFrame([[data.Heart_Rate, data.Sleep_Duration, data.Timestamp_Numeric]],
+        # Create DataFrame with correct feature names
+        input_df = pd.DataFrame([[data.Heart_Rate, data.Sleep_Duration, data.Timestamp_Numeric]], 
                                 columns=["Heart Rate", "Sleep Duration", "Timestamp_Numeric"])
         
         # Normalize inputs
@@ -44,16 +44,9 @@ def predict(data: HealthInput):
         prediction = model.predict(input_data)[0][0]
         risk_status = "At Risk" if prediction > 0.5 else "Healthy"
 
-        # Debug logs (for testing)
-        print(f"Received Data: {data}")
-        print(f"Processed DataFrame:\n{input_df}")
-        print(f"Scaled Input: {input_data}")
-        print(f"Prediction: {prediction} -> Status: {risk_status}")
-
         return {"prediction": float(prediction), "status": risk_status}
     
     except Exception as e:
-        print(f"❌ Error: {str(e)}")  # Debugging log
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 # Run locally
