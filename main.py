@@ -16,12 +16,12 @@ scaler = joblib.load("scaler.pkl")
 # Initialize FastAPI app
 app = FastAPI()
 
-# Define request body model
+# Define request body model (fields match Streamlit)
 class HealthInput(BaseModel):
     heart_rate: float
     sleep_duration: float
-    timestamp_numeric: int  # Ensuring timestamp is included
-    sleep_category: int  # Still included but unused in prediction
+    timestamp_numeric: int
+    sleep_category: int  # Unused but required for schema
 
 @app.get("/")
 def home():
@@ -30,18 +30,18 @@ def home():
 @app.post("/predict")
 def predict(data: HealthInput):
     try:
-        # Create DataFrame with correct feature names
+        # Create DataFrame with the correct feature names
         input_df = pd.DataFrame([[data.heart_rate, data.sleep_duration, data.timestamp_numeric]], 
-                                columns=["Heart Rate", "Sleep Duration", "Timestamp_Numeric"])
-        
-        # Normalize inputs using the same scaler as during training
+                                columns=["heart_rate", "sleep_duration", "timestamp_numeric"])  # MATCH Streamlit JSON keys
+
+        # Normalize input using the same scaler
         input_data = scaler.transform(input_df)
 
-        # Reshape for LSTM - Ensure the model receives (batch_size, time_steps=6, features=3)
-        input_data = np.tile(input_data, (6, 1))  # Repeat input to match time steps
+        # Reshape for LSTM (batch_size=1, time_steps=6, features=3)
+        input_data = np.tile(input_data, (6, 1))  # Repeat input 6 times
         input_data = np.reshape(input_data, (1, 6, 3))
 
-        # Get prediction
+        # Make prediction
         prediction = model.predict(input_data)[0][0]
         risk_status = "At Risk" if prediction > 0.5 else "Healthy"
 
