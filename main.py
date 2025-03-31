@@ -16,12 +16,12 @@ scaler = joblib.load("scaler.pkl")
 # Initialize FastAPI app
 app = FastAPI()
 
-# Define request model
+# Define request model (matching feature names used in training)
 class HealthInput(BaseModel):
-    heart_rate: float
-    sleep_duration: float
-    timestamp_numeric: int
-    sleep_category: int = 0  # Default value added ✅
+    Heart_Rate: float
+    Sleep_Duration: float
+    Timestamp_Numeric: int
+    Sleep_Category: int = 0  # Default value
 
 @app.get("/")
 def home():
@@ -30,9 +30,9 @@ def home():
 @app.post("/predict")
 def predict(data: HealthInput):
     try:
-        # Create DataFrame with feature names to avoid sklearn warning
-        input_df = pd.DataFrame([[data.heart_rate, data.sleep_duration, data.timestamp_numeric]],
-                                columns=["heart_rate", "sleep_duration", "timestamp_numeric"])
+        # Create DataFrame with correctly capitalized feature names
+        input_df = pd.DataFrame([[data.Heart_Rate, data.Sleep_Duration, data.Timestamp_Numeric]],
+                                columns=["Heart Rate", "Sleep Duration", "Timestamp_Numeric"])
         
         # Normalize inputs
         input_data = scaler.transform(input_df)
@@ -44,7 +44,7 @@ def predict(data: HealthInput):
         prediction = model.predict(input_data)[0][0]
         risk_status = "At Risk" if prediction > 0.5 else "Healthy"
 
-        # Debug logs (only for local testing)
+        # Debug logs (for testing)
         print(f"Received Data: {data}")
         print(f"Processed DataFrame:\n{input_df}")
         print(f"Scaled Input: {input_data}")
